@@ -16,6 +16,8 @@
 
 + 5.arp   
     $ arprequest eth0 192.168.1.179
+    $ setarp 
+    $ cat /proc/net/arp  
 
 + ref  
     socket:
