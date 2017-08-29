@@ -14,6 +14,9 @@
     $ gcc -o filter filter.c
     $ sudo ./filter
 
++ 5.arp   
+    $ arprequest eth0 192.168.1.179
+
 + ref  
     socket:
     http://beej-zhtw.netdpi.net/
