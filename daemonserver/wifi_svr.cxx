@@ -12,41 +12,21 @@
 #include <sys/param.h> 
 #include <semaphore.h>
 #include <dirent.h>
+#include <sys/wait.h> 
 
-
+#include <fstream> 
+#include <iostream>
+#include <string>
 
 #define WPA_TMP_SUPP_CONF "/tmp/wpa_supplicant.conf"
 #define WIFI_ENABLE_FLAG "/etc/flags/flag_wifi"
+#define WPA_DAEMON_PATH "/var/run/wpa_supplicant" 
 #define CMD_WPA_SUPPLICANT  ("wpa_supplicant")
 #define WPA_PROCESS "wpa_supplicant"
-#define WPA_DAEMON_PATH "/var/run/wpa_supplicant" 
+#define CMD_SIZE 256
+#define WIFI_SVR_PORT 15858
 
 sem_t mutex;
-
-#if 0
-void init_daemon(void) 
-{ 
-    int pid; 
-    int i;
-    if(pid=fork()) 
-       exit(0); 
-    else if(pid< 0) 
-       exit(1);
-
-    setsid();
-
-    if(pid=fork()) 
-       exit(0);
-    else if(pid< 0) 
-       exit(1); 
-
-    for(i=0;i< NOFILE;++i)
-        close(i); 
-    chdir("/");
-    umask(0); 
-    return;
-}
-#endif
 
 /*
  * get process pid by process name
@@ -124,59 +104,21 @@ int w_status_program(char* name)
 	}
 	return 1;
 }
-#if 0
-void fork_exec(const std::string& path, const std::string& para)
-{
-    pid_t pid = fork();
-    if (pid != 0)
-    {
-        if (pid > 0) waitpid(pid, 0, 0);
-    }
-    else
-    {  //child1
-        pid = fork();
-        if (pid != 0)
-        {
-            exit(0);
-        }
-        else
-        {//child2
-            struct rlimit rlim;
-            if (0 == getrlimit(RLIMIT_NOFILE, &rlim))
-            {
-                int maxFD = rlim.rlim_cur;
-                for (int i = 0; i < maxFD; ++i)
-                {
-                    fcntl(i, F_SETFD, fcntl(i, F_GETFD) | FD_CLOEXEC);
-                }
-            }
-            if (para.empty())
-            {
-                if (-1 == execl(path.c_str(), path.c_str(), NULL))
-                {
-                    exit(0);
-                }
-            }
-            else
-            {
-                if (-1 == execl(path.c_str(), path.c_str(), para.c_str(), NULL))
-                {
-                    exit(0);
-                }
-            }
 
-        }
-    }
-}
-#endif
-
-int cmd_wpa_supplicant(char *pbuffer)
+int cmd_wpa_supplicant(char *pbuffer, int data_len)
 {
 	sem_wait(&mutex);
 	FILE *fr, *fw;
 	int val = 0, ret;
-	char cmd[256];//test
+	char cmd[CMD_SIZE];
 	
+	snprintf(cmd,256,"echo cmd_wpa_supplicant1:%d >> /home/log.txt",data_len);
+	ret = system(cmd);
+	
+	if (data_len > CMD_SIZE){
+		return 1;
+	}
+
 	fr = fopen(WIFI_ENABLE_FLAG, "r");
 	if(fr){
 		ret = fscanf(fr,"%d",&val);
@@ -191,19 +133,14 @@ int cmd_wpa_supplicant(char *pbuffer)
 		return 1;
 	}
 
-	fw = fopen( WPA_TMP_SUPP_CONF, "w+"); 
+	fw = fopen(WPA_TMP_SUPP_CONF, "w+"); 
 	fprintf(fw,"ctrl_interface=%s\nupdate_config=1\n", WPA_DAEMON_PATH);
 	fclose(fw);
 
-	//snprintf(cmd, 256,"wpa_supplicant -d -Dnl80211 -c%s -iwlan0 -B", WPA_TMP_SUPP_CONF);
-	//ret = system(cmd);
+	snprintf(cmd,data_len+1,"%s", pbuffer); //snprintf in gcc need plus 1 for '\0'
+	ret = system(cmd);
 
-	//snprintf(cmd,sizeof(pbuffer),"%s", pbuffer);
-	//snprintf(cmd,65,"%s", pbuffer);
-	//ret = system(cmd);
-
-	//snprintf(cmd,256,"echo %s >> /home/log.txt", pbuffer);
-	snprintf(cmd,256,"echo startwifi >> /home/log.txt");
+	snprintf(cmd,256,"echo cmd_wpa_supplicant2 >> /home/log.txt");
 	ret = system(cmd);
 
 	sem_post(&mutex);
@@ -212,9 +149,7 @@ int cmd_wpa_supplicant(char *pbuffer)
 
 int main(int argc, char *argv[]) {
 	sem_init(&mutex, 0, 1);
-	int SERVER_PORT = 8877;
-	//int ret;
-	char cmd[256];//test
+	int SERVER_PORT = WIFI_SVR_PORT;
 
 	struct sockaddr_in server_address;
 	memset(&server_address, 0, sizeof(server_address));
@@ -242,12 +177,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	struct sockaddr_in client_address;
-	//int client_address_len = 0;
 	socklen_t client_address_len = 0;
 
-					sprintf(cmd,"echo startwifi >> /home/log1.txt");
-					system(cmd);
-	// run indefinitely
 	while (true) {
 		int sock;
 		if ((sock = accept(listen_sock, (struct sockaddr *)&client_address, 
@@ -256,18 +187,15 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 
-		int n = 0;
-		int ret,maxlen = 256;
-		char buffer[maxlen];
+		int n = 0,ret = 0;
+		char buffer[CMD_SIZE];
 		char *pbuffer = buffer;
 		printf("client connected with ip address: %s\n",
 		       inet_ntoa(client_address.sin_addr));
 
-		while ((n = recv(sock, pbuffer, maxlen, 0)) > 0) {
+		while ((n = recv(sock, pbuffer, CMD_SIZE, 0)) > 0) {
 			if (!memcmp(pbuffer,CMD_WPA_SUPPLICANT,strlen(CMD_WPA_SUPPLICANT))) {
-					snprintf(cmd,256,"echo startwifi_%s >> /home/log1.txt",pbuffer);
-					ret = system(cmd);
-				ret = cmd_wpa_supplicant(pbuffer);
+				ret = cmd_wpa_supplicant(pbuffer,n);
 			}
 		}
 		close(sock);
