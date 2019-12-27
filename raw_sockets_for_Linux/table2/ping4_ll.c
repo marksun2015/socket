@@ -122,18 +122,18 @@ main (int argc, char **argv)
   printf ("Index for interface %s is %i\n", interface, device.sll_ifindex);
 
   // Set destination MAC address: you need to fill these out
-  dst_mac[0] = 0xff;
-  dst_mac[1] = 0xff;
-  dst_mac[2] = 0xff;
-  dst_mac[3] = 0xff;
-  dst_mac[4] = 0xff;
-  dst_mac[5] = 0xff;
+  dst_mac[0] = 0x00;
+  dst_mac[1] = 0x0c;
+  dst_mac[2] = 0x26;
+  dst_mac[3] = 0x18;
+  dst_mac[4] = 0xa9;
+  dst_mac[5] = 0xaf;
 
   // Source IPv4 address: you need to fill this out
-  strcpy (src_ip, "192.168.1.132");
+  strcpy (src_ip, "192.168.1.179");
 
   // Destination URL or IPv4 address: you need to fill this out
-  strcpy (target, "www.google.com");
+  strcpy (target, "192.168.3.22");
 
   // Fill out hints for getaddrinfo().
   memset (&hints, 0, sizeof (struct addrinfo));
